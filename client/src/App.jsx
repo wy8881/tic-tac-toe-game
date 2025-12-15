@@ -1,9 +1,9 @@
 import Player from './components/Player'
-import Gameboard from './components/Gameboard'
+import GameBoard from './components/GameBoard'
 import {useState} from "react";
-import Log from "./components/Log.jsx";
-import GameOver from "./components/GameOver.jsx";
-import {WINNING_COMBINATIONS} from "./winning-combinations.js";
+import Log from "./components/Log";
+import GameOver from "./components/GameOver";
+import {WINNING_COMBINATIONS} from "./winning-combinations";
 
 const INITIAL_PLAYERS = {
     X: 'Player 1',
@@ -64,7 +64,6 @@ function App() {
   const hasDraw = gameTurns.length === 9 && !winner;
 
   function handleSelectSquare(rowIndex, colIndex) {
-    // setActivePlayer((curActivePlayer) => curActivePlayer === 'X'? 'O' : 'X')
     setGameTurns(preTurns => {
       const curPlayer = deriveActivePlayer(preTurns)
 
@@ -90,7 +89,8 @@ function App() {
 
   }
 
-  return <main>
+  return (
+  <main>
     <div id="game-container">
       <ol id={'players'} className={'highlight-player'}>
         <Player initialName={INITIAL_PLAYERS.X}
@@ -103,13 +103,13 @@ function App() {
                 onNameChange={handlePlayerNameChange}/>
       </ol>
       {(winner || hasDraw) && <GameOver winner={winner} onRestart={handleReset}/>}
-      <Gameboard
+      <GameBoard
           onSelectSquare={handleSelectSquare}
           board={gameBoard}
       />
     </div>
     <Log turns={gameTurns}/>
   </main>
-}
+  )}
 
 export default App
