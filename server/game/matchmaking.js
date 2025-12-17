@@ -102,12 +102,12 @@ class MatchmakingQueue {
         return true;
     }
     
-    setGameStatus(gameId, status, winnerSymbol = null) {
+    setGameStatus(gameId, status, winner = null) {
         const game = this.getGame(gameId);
         if (!game) return false;
         game.status = status;
         if (winner) {
-            game.winnerSymbol = winnerSymbol;
+            game.winner = winner;
         }
         return true;
     }

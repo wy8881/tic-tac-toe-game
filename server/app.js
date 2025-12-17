@@ -19,9 +19,18 @@ const httpServer = createServer(app)
 app.use(cors())
 app.use(express.json())
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+]
+
+if(process.env.CLIENT_URL) {
+  allowedOrigins.push(process.env.CLIENT_URL)
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 })
@@ -98,10 +107,13 @@ io.on('connection', (socket) => {
     const gameStatus = getGameStatus(game.board);
     if (gameStatus.status === 'won') {
       matchmaking.setGameStatus(gameId, 'won', gameStatus.winnerSymbol);
+      
       io.to(gameId).emit('game-over', {
         winner: game.players[gameStatus.winnerSymbol].name,
         board: game.board
       })
+      const winnerSymbol = gameStatus.winnerSymbol;
+      const winnerName = game.players[winnerSymbol].name;
       logger.info({socketId: socket.id, gameId, position}, 'Game over')
       matchmaking.removeGame(gameId);
       return

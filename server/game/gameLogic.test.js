@@ -222,7 +222,7 @@ const {
       ];
       const status = getGameStatus(board);
       expect(status.status).toBe('won');
-      expect(status.winner).toBe('X');
+      expect(status.winnerSymbol).toBe('X');
     });
   
     test('should return won status when O wins', () => {
@@ -233,7 +233,7 @@ const {
       ];
       const status = getGameStatus(board);
       expect(status.status).toBe('won');
-      expect(status.winner).toBe('O');
+      expect(status.winnerSymbol).toBe('O');
     });
   
     test('should return draw status when board is full with no winner', () => {
@@ -244,7 +244,7 @@ const {
       ];
       const status = getGameStatus(board);
       expect(status.status).toBe('draw');
-      expect(status.winner).toBeNull();
+      expect(status.winnerSymbol).toBeNull();
     });
   
     test('should return playing status when game is in progress', () => {
@@ -255,14 +255,14 @@ const {
       ];
       const status = getGameStatus(board);
       expect(status.status).toBe('playing');
-      expect(status.winner).toBeNull();
+      expect(status.winnerSymbol).toBeNull();
     });
   
     test('should return playing status for empty board', () => {
       const board = Array(9).fill(null);
       const status = getGameStatus(board);
       expect(status.status).toBe('playing');
-      expect(status.winner).toBeNull();
+      expect(status.winnerSymbol).toBeNull();
     });
   });
   

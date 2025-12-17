@@ -12,8 +12,11 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "bootstrap": "^5.3.8",
     "react": "^18.2.0",
+    "react-bootstrap": "^2.10.10",
     "react-dom": "^18.2.0",
+    "react-loader-spinner": "^8.0.0",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
