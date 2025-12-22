@@ -1,17 +1,17 @@
-const {
+import {
     checkWin,
     checkDraw,
     isValidMove,
     createBoard,
     getGameStatus,
     WINNING_LINES
-  } = require('./gameLogic');
+  } from './gameLogic.js';
   
   describe('checkWin', () => {
     
     describe('horizontal wins', () => {
       test('should detect X win in first row', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'X', 'X',
           null, 'O', null,
           null, 'O', null
@@ -20,7 +20,7 @@ const {
       });
   
       test('should detect O win in second row', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', null, 'X',
           'O', 'O', 'O',
           null, 'X', null
@@ -29,7 +29,7 @@ const {
       });
   
       test('should detect X win in third row', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'O', 'O', null,
           null, 'O', 'X',
           'X', 'X', 'X'
@@ -40,7 +40,7 @@ const {
   
     describe('vertical wins', () => {
       test('should detect X win in first column', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'O', 'O',
           'X', null, null,
           'X', null, null
@@ -49,7 +49,7 @@ const {
       });
   
       test('should detect O win in second column', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'O', 'X',
           null, 'O', null,
           null, 'O', 'X'
@@ -58,7 +58,7 @@ const {
       });
   
       test('should detect X win in third column', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'O', 'O', 'X',
           null, null, 'X',
           null, 'O', 'X'
@@ -69,7 +69,7 @@ const {
   
     describe('diagonal wins', () => {
       test('should detect X win from top-left to bottom-right', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'O', 'O',
           null, 'X', null,
           'O', null, 'X'
@@ -78,7 +78,7 @@ const {
       });
   
       test('should detect O win from top-right to bottom-left', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'X', 'O',
           null, 'O', null,
           'O', null, 'X'
@@ -89,7 +89,7 @@ const {
   
     describe('no winner scenarios', () => {
       test('should return null when game is in progress', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'O', null,
           null, 'X', null,
           null, null, null
@@ -103,7 +103,7 @@ const {
       });
   
       test('should return null for draw (no winner)', () => {
-        const board = [
+        const board: ('X' | 'O' | null)[] = [
           'X', 'O', 'X',
           'X', 'O', 'O',
           'O', 'X', 'X'
@@ -116,7 +116,7 @@ const {
   describe('checkDraw', () => {
     
     test('should return true when board is full', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'O', 'X',
         'X', 'O', 'O',
         'O', 'X', 'X'
@@ -125,7 +125,7 @@ const {
     });
   
     test('should return false when board has empty cells', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'O', 'X',
         null, 'O', null,
         'O', 'X', 'X'
@@ -139,7 +139,7 @@ const {
     });
   
     test('should return false when only one cell is filled', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', null, null,
         null, null, null,
         null, null, null
@@ -151,7 +151,7 @@ const {
   describe('isValidMove', () => {
     
     test('should return true for empty cell', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', null, 'O',
         null, 'X', null,
         null, 'O', null
@@ -162,7 +162,7 @@ const {
     });
   
     test('should return false for occupied cell', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', null, 'O',
         null, 'X', null,
         null, 'O', null
@@ -215,54 +215,54 @@ const {
   describe('getGameStatus', () => {
     
     test('should return won status when X wins', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'X', 'X',
         null, 'O', null,
         null, 'O', null
       ];
       const status = getGameStatus(board);
-      expect(status.status).toBe('won');
-      expect(status.winnerSymbol).toBe('X');
+      expect(status.state).toBe('won');
+      expect(status.winner).toBe('X');
     });
   
     test('should return won status when O wins', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'X', 'O',
         null, 'O', null,
         'O', null, 'X'
       ];
       const status = getGameStatus(board);
-      expect(status.status).toBe('won');
-      expect(status.winnerSymbol).toBe('O');
+      expect(status.state).toBe('won');
+      expect(status.winner).toBe('O');
     });
   
     test('should return draw status when board is full with no winner', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'O', 'X',
         'X', 'O', 'O',
         'O', 'X', 'X'
       ];
       const status = getGameStatus(board);
-      expect(status.status).toBe('draw');
-      expect(status.winnerSymbol).toBeNull();
+      expect(status.state).toBe('draw');
+      expect(status.winner).toBeNull();
     });
   
     test('should return playing status when game is in progress', () => {
-      const board = [
+      const board: ('X' | 'O' | null)[] = [
         'X', 'O', null,
         null, 'X', null,
         null, null, null
       ];
       const status = getGameStatus(board);
-      expect(status.status).toBe('playing');
-      expect(status.winnerSymbol).toBeNull();
+      expect(status.state).toBe('playing');
+      expect(status.winner).toBeNull();
     });
   
     test('should return playing status for empty board', () => {
       const board = Array(9).fill(null);
       const status = getGameStatus(board);
-      expect(status.status).toBe('playing');
-      expect(status.winnerSymbol).toBeNull();
+      expect(status.state).toBe('playing');
+      expect(status.winner).toBeNull();
     });
   });
   

@@ -19,6 +19,13 @@ const INITIAL_GAME_BOARD = [
   [null, null, null],
 ];
 
+const GAME_STATUS = {
+  ENTERING: 'entering',
+  WAITING: 'waiting',
+  PLAYING: 'playing',
+  FINISHED: 'finished',
+}
+
 function to2DBoard(board1D) {
   return [
     board1D.slice(0, 3),
@@ -29,20 +36,27 @@ function to2DBoard(board1D) {
 
 
 function App() {
-  const [gameStatus, setGameStatus] = useState('entering');
+  const [gameStatus, setGameStatus] = useState(GAME_STATUS.ENTERING);
   const [playerName, setPlayerName] = useState('');
   const [players, setPlayers] = useState(INITIAL_PLAYERS)
   const [gameTurns, setGameTurns] = useState([])
   const [board, setBoard] = useState(INITIAL_GAME_BOARD)
   const [currentTurn, setCurrentTurn] = useState('X')
   const [mySymbol, setMySymbol] = useState(null)
-  const [gameId, setGameId] = useState(null)
+  const [roomId, setRoomId] = useState(null)
   const [winner, setWinner] = useState(null)
+  const [waitingMessage, setWaitingMessage] = useState('')
 
   useEffect(() => {
     socket.on('waiting-for-match', (data) => {
-      setGameStatus('waiting')
-      console.log('Waiting for opponent...')
+      setGameStatus(GAME_STATUS.WAITING)
+      console.log('Waiting for a match...')
+      setWaitingMessage('Waiting for a match...')
+    })
+    socket.on('waiting-in-room', (data) => {
+      setGameStatus(GAME_STATUS.WAITING)
+      console.log('Waiting for your friend to join...')
+      setWaitingMessage('Waiting for your friend to join...')
     })
     socket.on('your-symbol', (data) => {
       setMySymbol(data.symbol)
@@ -50,8 +64,8 @@ function App() {
     })
     socket.on('game-start', (data) => {
       console.log('Game started', data)
-      setGameStatus('playing')
-      setGameId(data.gameId)
+      setGameStatus(GAME_STATUS.PLAYING)
+      setRoomId(data.roomId)
       setBoard(to2DBoard(data.board))
       setCurrentTurn(data.currentTurn)
       setPlayers({
@@ -79,17 +93,24 @@ function App() {
     socket.on('game-over', (data) => {
       console.log('Game over', data)
       setBoard(INITIAL_GAME_BOARD)
-      setGameStatus('finished')
+      setGameStatus(GAME_STATUS.FINISHED)
       if (data.winner === 'draw') {
         setWinner('draw')
       } else {
         setWinner(data.winner)
       }
     })
+
+    socket.on('waiting-for-oppenent-decision', (data) => {
+      console.log('Waiting for your opponent to decide...')
+      setGameStatus(GAME_STATUS.WAITING)
+      setWaitingMessage('Waiting for your opponent to decide...')
+    })
+
     socket.on('opponent-left', (data) => {
       console.log('Opponent left', data)
       alert(data.message)
-      setGameStatus('entering')
+      setGameStatus(GAME_STATUS.ENTERING)
       resetGame()
     })
     socket.on('error', (data) => {
@@ -97,41 +118,51 @@ function App() {
       alert(data.message)
     })
     return () => {
-      socket.off('waiting')
+      socket.off('waiting-for-match')
+      socket.off('waiting-in-room')
       socket.off('your-symbol')
       socket.off('game-start')
       socket.off('board-update')
       socket.off('game-over')
       socket.off('opponent-left')
+      socket.off('waiting-for-oppenent-decision')
       socket.off('error')
     }
   }, [])
 
-  function handleJoinGame(e) {
+  function handleQuickMatch(e) {
     e.preventDefault()
     if (playerName.trim().length) {
       socket.connect()
-      socket.emit('join-game', playerName)
+      socket.emit('quick-match', playerName)
     }
   }
-
+  function handleJoinRoom(e) {
+    e.preventDefault()
+    if (roomId.trim().length) {
+      socket.connect()
+      socket.emit('join-room', {roomCode: roomId, playerName: playerName})
+    }
+  }
+  
+  
   function handleSelectSquare(rowIndex, colIndex) {
-    if (gameStatus !== 'playing')
+      if (gameStatus !== GAME_STATUS.PLAYING)
       return;
     if (mySymbol !== currentTurn) 
       return;
     const position = rowIndex * 3 + colIndex;
     if (board[rowIndex][colIndex] !== null) return;
-    socket.emit('make-move',{gameId, position})
+    socket.emit('make-move',{roomId, position})
   }
 
   function resetGame() {
-    setGameStatus('entering')
+    setGameStatus(GAME_STATUS.ENTERING)
     setBoard(INITIAL_GAME_BOARD)
     setGameTurns([])
     setCurrentTurn('X')
     setWinner(null)
-    setGameId(null)
+    setRoomId(null)
     setMySymbol(null)
     socket.disconnect()
   }
@@ -139,25 +170,15 @@ function App() {
   function handleReset() {
     resetGame()
   }
-
-  function handlePlayerNameChange(symbol, name) {
-    setPlayers((prevPlayers) => {
-      return {
-        ...prevPlayers,
-        [symbol]: name
-      }
-    })
-
-  }
   const hasDraw = winner === 'draw';
   
   let content;
-  if (gameStatus === 'entering') {
+  if (gameStatus === GAME_STATUS.ENTERING) {
     content = (
       <div id="game-container">
-        <div id="join-game" className="d-flex flex-column align-items-center gap-5">
+        <div id="join-game" className="d-flex flex-column align-items-center gap-3 ttt-form ttt-panel">
           <h2>Join Online Game</h2>
-          <Form.Group className="d-flex justify-content-start align-items-center gap-4">
+          <Form.Group className="d-flex justify-content-start align-items-center gap-4 ttt-row">
             <Form.Label htmlFor="player-name-input"  id="player-name-label" className="ttt-label">Your name</Form.Label>
             <Form.Control
               id="player-name-input"
@@ -170,15 +191,37 @@ function App() {
               autoFocus
             />
           </Form.Group>
-          <Button type="submit" className="ttt-btn-primary" onClick={handleJoinGame}>Join Game</Button>
+
+          <form onSubmit={handleQuickMatch} className='ttt-actions'>
+            <Button type="submit" className="ttt-btn-primary">Quick Match</Button>
+          </form>
+
+          <div className="ttt-divider">
+            <span>OR</span>
+          </div>
+
+          <form onSubmit={handleJoinRoom} className="ttt-room-form">
+            <Form.Group className="d-flex justify-content-start align-items-center gap-4 ttt-row">
+              <Form.Label htmlFor="room-id-input"  id="room-id-label" className="ttt-label">Room ID</Form.Label>
+              <Form.Control
+                id="room-id-input"
+                type="text"
+                placeholder="Enter room ID"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="ttt-input"
+              />
+            </Form.Group>
+            <Button type="submit" className="ttt-btn-primary">Join Room</Button>
+          </form>
         </div>
       </div>
     );
-  } else if (gameStatus === 'waiting') {
+  } else if (gameStatus === GAME_STATUS.WAITING) {
     content = (
       <div id="game-container">
         <div id="waiting" className="d-flex flex-column align-items-center">
-          <h2>Waiting for opponent...</h2>
+          <h2>{waitingMessage}</h2>
           <div className="ttt-spinner-wrap">
             <RotatingLines
               width="44"
@@ -191,7 +234,7 @@ function App() {
   } else {
     content = (
       <div id="game-container">
-        <div className={`players-container ${gameStatus === 'playing' ? 'highlight-player' : ''}`}>
+        <div className={`players-container ${gameStatus === GAME_STATUS.PLAYING ? 'highlight-player' : ''}`}>
           <Player playerName={players.X}
               symbol={'X'}
               isActive={currentTurn === 'X'}/>
