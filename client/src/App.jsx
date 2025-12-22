@@ -7,6 +7,8 @@ import {socket} from './socket'
 import {useEffect} from 'react'
 import {Form, Button} from 'react-bootstrap'
 import { RotatingLines } from "react-loader-spinner"
+import TvShell from './components/TvShell'
+import {ButtonGroup} from 'react-bootstrap'
 
 
 const INITIAL_PLAYERS = {
@@ -46,8 +48,19 @@ function App() {
   const [roomId, setRoomId] = useState(null)
   const [winner, setWinner] = useState(null)
   const [waitingMessage, setWaitingMessage] = useState('')
+  const [mode, setMode] = useState('quick-match')
 
   useEffect(() => {
+    socket.on('connect', () => {
+      console.log('Socket connected')
+    })
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error)
+      alert('Failed to connect to server. Please check if the server is running.')
+    })
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected')
+    })
     socket.on('waiting-for-match', (data) => {
       setGameStatus(GAME_STATUS.WAITING)
       console.log('Waiting for a match...')
@@ -118,6 +131,9 @@ function App() {
       alert(data.message)
     })
     return () => {
+      socket.off('connect')
+      socket.off('connect_error')
+      socket.off('disconnect')
       socket.off('waiting-for-match')
       socket.off('waiting-in-room')
       socket.off('your-symbol')
@@ -139,10 +155,16 @@ function App() {
   }
   function handleJoinRoom(e) {
     e.preventDefault()
-    if (roomId.trim().length) {
-      socket.connect()
-      socket.emit('join-room', {roomCode: roomId, playerName: playerName})
+    if (!playerName || !playerName.trim().length) {
+      alert('Please enter your name')
+      return
     }
+    if (!roomId || !roomId.trim().length) {
+      alert('Please enter a room ID')
+      return
+    }
+    socket.connect()
+    socket.emit('join-room', {roomCode: roomId.trim(), playerName: playerName.trim()})
   }
   
   
@@ -175,47 +197,64 @@ function App() {
   let content;
   if (gameStatus === GAME_STATUS.ENTERING) {
     content = (
-      <div id="game-container">
-        <div id="join-game" className="d-flex flex-column align-items-center gap-3 ttt-form ttt-panel">
-          <h2>Join Online Game</h2>
-          <Form.Group className="d-flex justify-content-start align-items-center gap-4 ttt-row">
-            <Form.Label htmlFor="player-name-input"  id="player-name-label" className="ttt-label">Your name</Form.Label>
-            <Form.Control
-              id="player-name-input"
-              type="text"
-              placeholder="Enter your name"
-              className="ttt-input"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              required
-              autoFocus
-            />
-          </Form.Group>
-
-          <form onSubmit={handleQuickMatch} className='ttt-actions'>
-            <Button type="submit" className="ttt-btn-primary">Quick Match</Button>
-          </form>
-
-          <div className="ttt-divider">
-            <span>OR</span>
-          </div>
-
-          <form onSubmit={handleJoinRoom} className="ttt-room-form">
-            <Form.Group className="d-flex justify-content-start align-items-center gap-4 ttt-row">
-              <Form.Label htmlFor="room-id-input"  id="room-id-label" className="ttt-label">Room ID</Form.Label>
+      <TvShell>
+        <h2 className="tv-title">Join Online Game</h2>
+        <div className="tv-menu">
+          <Form.Group>
+            <div className='tv-form-grid'> 
+              <Form.Label htmlFor="player-name-input">Your name</Form.Label>
               <Form.Control
-                id="room-id-input"
+                id="player-name-input"
                 type="text"
-                placeholder="Enter room ID"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
+                placeholder="Enter your name"
                 className="ttt-input"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                required
+                autoFocus
               />
-            </Form.Group>
-            <Button type="submit" className="ttt-btn-primary">Join Room</Button>
-          </form>
+              {mode == 'join-room' && (
+                <>
+                  <Form.Label htmlFor="room-id-input">Room ID</Form.Label>
+                  <Form.Control
+                    id="room-id-input"
+                    type="text"
+                    placeholder="Enter room ID"
+                    value={roomId || ''}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    className="ttt-input"
+                  />
+                </>
+              )}
+            </div>
+          </Form.Group>
+          <div className="tv-buttons">
+          {mode == 'quick-match' ? (
+            <>
+              <Button type="submit" onClick={handleQuickMatch} className="ttt-btn-primary">Quick Match</Button>
+              <Button
+                type="button" 
+                className="ttt-btn-primary"
+                onClick={() => setMode('join-room')}
+                >
+                  Join Room
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="submit" onClick={handleJoinRoom} className="ttt-btn-primary">Join Room</Button>
+              <Button
+                type="button"
+                className="ttt-btn-primary"
+                onClick={() => setMode('quick-match')}
+                >
+                  Back                
+              </Button>
+            </>
+          )}
+          </div>
         </div>
-      </div>
+      </TvShell>
     );
   } else if (gameStatus === GAME_STATUS.WAITING) {
     content = (
@@ -257,10 +296,10 @@ function App() {
   return (
     <div className='app-wrapper'>
       <header>
-        <img src="game-logo.png" alt="Tic-Tac-Toe" />
+        {/* <img src="game-logo.png" alt="Tic-Tac-Toe" /> */}
         <h1>Tic-Tac-Toe</h1>
       </header>
-      <main className="main-container">
+      <main className="main-container d-flex justify-content-center align-items-center">
         {content}
       </main>
     </div>
