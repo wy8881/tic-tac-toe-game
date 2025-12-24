@@ -8,7 +8,8 @@ import {useEffect} from 'react'
 import {Form, Button} from 'react-bootstrap'
 import { RotatingLines } from "react-loader-spinner"
 import TvShell from './components/TvShell'
-import {ButtonGroup} from 'react-bootstrap'
+import { Toast, ToastContainer } from 'react-bootstrap';
+
 
 
 const INITIAL_PLAYERS = {
@@ -45,11 +46,13 @@ function App() {
   const [board, setBoard] = useState(INITIAL_GAME_BOARD)
   const [currentTurn, setCurrentTurn] = useState('X')
   const [mySymbol, setMySymbol] = useState(null)
-  const [roomId, setRoomId] = useState(null)
+  const [roomCode, setRoomCode] = useState(null)
   const [winner, setWinner] = useState(null)
   const [waitingMessage, setWaitingMessage] = useState('')
   const [mode, setMode] = useState('quick-match')
-
+  const [showEnteringToast, setShowEnteringToast] = useState(false)
+  const [enteringToastMessage, setEnteringToastMessage] = useState('')
+  const [rematchMessage, setRematchMessage] = useState('')
   useEffect(() => {
     socket.on('connect', () => {
       console.log('Socket connected')
@@ -78,14 +81,13 @@ function App() {
     socket.on('game-start', (data) => {
       console.log('Game started', data)
       setGameStatus(GAME_STATUS.PLAYING)
-      setRoomId(data.roomId)
+      setRoomCode(data.roomCode)
       setBoard(to2DBoard(data.board))
       setCurrentTurn(data.currentTurn)
       setPlayers({
         X: data.players.X,
         O: data.players.O
       })
-      console.log('Players', players)
       setGameTurns([])
       setWinner(null)
     })
@@ -105,7 +107,6 @@ function App() {
     })
     socket.on('game-over', (data) => {
       console.log('Game over', data)
-      setBoard(INITIAL_GAME_BOARD)
       setGameStatus(GAME_STATUS.FINISHED)
       if (data.winner === 'draw') {
         setWinner('draw')
@@ -114,11 +115,11 @@ function App() {
       }
     })
 
-    socket.on('waiting-for-oppenent-decision', (data) => {
-      console.log('Waiting for your opponent to decide...')
-      setGameStatus(GAME_STATUS.WAITING)
-      setWaitingMessage('Waiting for your opponent to decide...')
+    socket.on('opponent-waiting-rematch', ({message}) => {
+      console.log('Opponent waiting for rematch', message)
+      setRematchMessage(message)
     })
+
 
     socket.on('opponent-left', (data) => {
       console.log('Opponent left', data)
@@ -152,19 +153,26 @@ function App() {
       socket.connect()
       socket.emit('quick-match', playerName)
     }
+    else {
+      setShowEnteringToast(true)
+      setEnteringToastMessage('Please enter your name')
+      return
+    }
   }
   function handleJoinRoom(e) {
     e.preventDefault()
     if (!playerName || !playerName.trim().length) {
-      alert('Please enter your name')
+      setShowEnteringToast(true)
+      setEnteringToastMessage('Please enter your name')
       return
     }
-    if (!roomId || !roomId.trim().length) {
-      alert('Please enter a room ID')
+    if (!roomCode || !roomCode.trim().length) {
+      setShowEnteringToast(true)
+      setEnteringToastMessage('Please enter a room ID')
       return
     }
     socket.connect()
-    socket.emit('join-room', {roomCode: roomId.trim(), playerName: playerName.trim()})
+    socket.emit('join-room', {roomCode: roomCode.trim(), playerName: playerName.trim()})
   }
   
   
@@ -175,7 +183,8 @@ function App() {
       return;
     const position = rowIndex * 3 + colIndex;
     if (board[rowIndex][colIndex] !== null) return;
-    socket.emit('make-move',{roomId, position})
+    console.log('Making move', {roomCode, position})
+    socket.emit('make-move',{roomCode, position})
   }
 
   function resetGame() {
@@ -184,20 +193,50 @@ function App() {
     setGameTurns([])
     setCurrentTurn('X')
     setWinner(null)
-    setRoomId(null)
+    setRoomCode(null)
     setMySymbol(null)
+    setRematchMessage('')
     socket.disconnect()
   }
 
-  function handleReset() {
+  function handleLeave() {
+    socket.emit('leave-room', {roomCode, choice: 'leave'})
     resetGame()
   }
+
+  function handleContinue() {
+    socket.emit('rematch-request', {roomCode, choice: 'continue'})
+    setGameStatus(GAME_STATUS.WAITING)
+    setWaitingMessage('Waiting for your opponent to decide...')
+  }
+
   const hasDraw = winner === 'draw';
   
   let content;
   if (gameStatus === GAME_STATUS.ENTERING) {
     content = (
       <TvShell>
+        <ToastContainer
+          position="middle-center"
+          style={{
+            zIndex: 1000,
+          }}
+        >
+          <Toast
+            show={showEnteringToast}
+            onClose={() => setShowEnteringToast(false)}
+            delay={2000}
+            autohide
+            bg="warning"
+          >
+            <Toast.Header>
+              <strong className="me-auto">Warning</strong>
+            </Toast.Header>
+            <Toast.Body>
+              {enteringToastMessage}
+            </Toast.Body>
+          </Toast>
+        </ToastContainer> 
         <h2 className="tv-title">Join Online Game</h2>
         <div className="tv-menu">
           <Form.Group>
@@ -220,15 +259,15 @@ function App() {
                     id="room-id-input"
                     type="text"
                     placeholder="Enter room ID"
-                    value={roomId || ''}
-                    onChange={(e) => setRoomId(e.target.value)}
+                    value={roomCode || ''}
+                    onChange={(e) => setRoomCode(e.target.value)}
                     className="ttt-input"
                   />
                 </>
               )}
             </div>
           </Form.Group>
-          <div className="tv-buttons">
+          <div className="buttons-group tv-buttons">
           {mode == 'quick-match' ? (
             <>
               <Button type="submit" onClick={handleQuickMatch} className="ttt-btn-primary">Quick Match</Button>
@@ -260,7 +299,7 @@ function App() {
     content = (
       <div id="game-container">
         <div id="waiting" className="d-flex flex-column align-items-center">
-          <h2>{waitingMessage}</h2>
+          <h2 className="text-center">{waitingMessage}</h2>
           <div className="ttt-spinner-wrap">
             <RotatingLines
               width="44"
@@ -270,25 +309,29 @@ function App() {
         </div>
       </div>
     );
-  } else {
+  } else{
     content = (
       <div id="game-container">
         <div className={`players-container ${gameStatus === GAME_STATUS.PLAYING ? 'highlight-player' : ''}`}>
           <Player playerName={players.X}
               symbol={'X'}
-              isActive={currentTurn === 'X'}/>
+              isActive={currentTurn === 'X'}
+              isMe={mySymbol === 'X'}
+              />
           <Player playerName={players.O}
                   symbol={'O'}
-                  isActive={currentTurn === 'O'}/>
+                  isActive={currentTurn === 'O'}
+                  isMe={mySymbol === 'O'}
+                  />
         </div>
-        {(winner || hasDraw) && <GameOver winner={winner} onRestart={handleReset}/>}
         <GameBoard
             onSelectSquare={handleSelectSquare}
             board={board}
         />
         <div className="log-container">
-          <Log turns={gameTurns}/>
+          {/* <Log turns={gameTurns}/> */}
         </div>
+        {(winner || hasDraw) && gameStatus === GAME_STATUS.FINISHED && <GameOver winner={winner} onContinue={handleContinue} onLeave={handleLeave} message={rematchMessage}/>}
       </div>
     );
   }

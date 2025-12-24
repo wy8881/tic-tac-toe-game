@@ -15,11 +15,12 @@ function startGame(room: Room, matchmaking: MatchmakingService): void {
 }
 
 function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingService, logger:any): void {
+  logger.info({roomCode}, 'Game started')
   const room = matchmaking.getRoomByRoomCode(roomCode);
   if (!room?.game) return;
   const game = room.game;
   io.to(roomCode).emit('game-start', {
-    roomId: roomCode,
+    roomCode: roomCode,
     players: {
       X: room.players[0].name,
       O: room.players[1].name
@@ -29,7 +30,6 @@ function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingSer
   })
   room.players[0].socket.emit('your-symbol', {symbol: 'X'});
   room.players[1].socket.emit('your-symbol', {symbol: 'O'});
-  logger.info({roomCode}, 'Game started')
 }
 
 export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, logger: any): void {
@@ -123,7 +123,6 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
           board: game.board
         })
         logger.info({socketId: socket.id, roomCode, position}, 'Game over')
-        room.game = undefined;
         return
       }
       if (gameStatus.state === 'draw') {
@@ -167,21 +166,19 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         return;
       }
       const ready = matchmaking.checkRematchReady(roomCode);
+      logger.info({socketId: socket.id, roomCode, ready}, 'Rematch Ready Check')
       if (!ready.ready) {
         const opponentId = room.players.find(p => p.id !== socket.id)?.id;
         if (opponentId) {
           io.to(opponentId).emit('opponent-waiting-rematch', {
             message: 'Your opponent is waiting for your rematch decision'
           })
-
-          socket.emit('waiting-for-oppenent-decision', {
-            message: 'Waiting for your opponent to decide...'
-          })
           logger.info({socketId: socket.id, roomCode, choice}, 'Waiting for opponent decision')
           return;
         }
       }
       if (ready.bothContinue) {
+        logger.info({socketId: socket.id, roomCode}, 'Both Rematch confirmed')
         matchmaking.resetGameForRematch(roomCode);
         notifyGameStart(roomCode, io, matchmaking, logger);
         return;

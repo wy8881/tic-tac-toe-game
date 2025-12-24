@@ -1,6 +1,6 @@
 import { createBoard } from './gameLogic.js'
 import { Player, Game, GameStatus, Symbol, GameState, Room, RoomChoice, RematchChoice } from '../type.js'
-
+import logger from './logger.js'
 class MatchmakingService {
     private waitingPlayers: Player[]
     private rooms: Map<string, Room>
@@ -179,6 +179,7 @@ class MatchmakingService {
     }
 
     resetGameForRematch(roomCode: string): boolean {
+        logger.info({roomCode}, 'Resetting game for rematch')
         const room = this.rooms.get(roomCode);
         if (!room?.game) return false;
         const game = room.game;
@@ -193,6 +194,11 @@ class MatchmakingService {
     }
 
     removeRoom(roomCode: string): boolean {
+        const room = this.rooms.get(roomCode);
+        if (!room) return false;
+        if (!room?.game) {
+            room.game = undefined;
+        }
         return this.rooms.delete(roomCode);
     }
 }
