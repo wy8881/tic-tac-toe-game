@@ -1,4 +1,3 @@
-import {User} from 'lucide-react'
 export default function Player({playerName, symbol, isActive, isMe}) {
     return (
         <div className={`player-box ${isActive ? 'active' : undefined}`}>
