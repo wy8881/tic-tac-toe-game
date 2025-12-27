@@ -29,6 +29,7 @@ export interface Room {
     code: string;
     players: Player[];
     game?:Game;
+    lastActivity: number;
 }
 
 export interface RoomChoice {

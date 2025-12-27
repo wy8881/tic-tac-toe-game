@@ -95,6 +95,10 @@ function App() {
         ])
       }
     })
+    socket.on('invalid-turn', ({message}) => {
+      console.log('Invalid turn', message)
+      toast.error(message)
+    })
     socket.on('game-over', (data) => {
       console.log('Game over', data)
       setGameStatus(GAME_STATUS.FINISHED)
@@ -130,6 +134,7 @@ function App() {
     socket.off('opponent-waiting-rematch')
     socket.off('opponent-left')
     socket.off('error')
+    socket.off('invalid-turn')
   }
 
   useEffect(() => {

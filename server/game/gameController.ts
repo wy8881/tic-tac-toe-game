@@ -2,6 +2,8 @@ import { Server } from 'socket.io'
 import { MatchmakingService } from './matchmaking.js'
 import { isValidMove, getGameStatus } from './gameLogic.js'
 import { Player, Room, RematchChoice } from '../type.js'
+import validator from 'validator'
+import logger from './logger.js'
 
 
 function startGame(room: Room, matchmaking: MatchmakingService): void {
@@ -28,39 +30,112 @@ function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingSer
     board: game.board,
     currentTurn: game.currentTurn,
   })
-  room.players[0].socket.emit('your-symbol', {symbol: 'X'});
-  room.players[1].socket.emit('your-symbol', {symbol: 'O'});
+  room.players.find(p => p.id === game.playerSymbols.X)?.socket.emit('your-symbol', {symbol: 'X'});
+  room.players.find(p => p.id === game.playerSymbols.O)?.socket.emit('your-symbol', {symbol: 'O'});
+}
+
+function safeHandler(socket: any, handler: (...args: any[]) => void | Promise<void>) {
+  return async (...args: any[]) => {
+    try {
+      await handler(...args);
+    } catch (error) {
+      logger.error({ error }, 'Error in socket handler');
+      socket.emit('error', { message: 'An error occurred' });
+    }
+  };
 }
 
 export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, logger: any): void {
+
+  const MAX_CONNECTIONS = 100;
+  let currentConnections = 0;
+  io.use((socket, next) => {
+    if (currentConnections >= MAX_CONNECTIONS) {
+      return next(new Error('Server is at maximum capacity'));
+    }
+    next();
+  });
+
   io.on('connection', (socket) => {
     logger.info({socketId: socket.id}, 'A user connected')
+    currentConnections++;
+    logger.info({currentConnections}, 'Current connections')
 
-    socket.on('quick-match',(playerName:string)=> {
-      logger.info({socketId: socket.id, playerName}, 'Player joined quick match')
+    socket.on('quick-match', safeHandler(socket, (playerName:string)=> {
+      if (!playerName || typeof playerName !== 'string') {
+        socket.emit('error', { message: 'Player name is required and must be a string' })
+        logger.error({socketId: socket.id, playerName}, 'Invalid player name type')
+        return;
+      }
+
+      const trimmedName = playerName.trim();
+      const escapedName = validator.escape(trimmedName);
+
+      if (escapedName.length < 1 || escapedName.length > 10) {
+        socket.emit('error', { message: 'Player name must be between 1 and 10 characters' })
+        logger.error({socketId: socket.id, playerName}, 'Invalid player name length')
+        return;
+      }
+
+      logger.info({socketId: socket.id, playerName: escapedName}, 'Player joined quick match')
       const player: Player = {
         id: socket.id,
-        name: playerName,
+        name: escapedName,
         socket: socket
       }
       const result = matchmaking.quickMatch(player);
       if (result.matched && result.room) {
+        matchmaking.updateRoomActivity(result.room.code);
         startGame(result.room, matchmaking);
         notifyGameStart(result.room.code, io, matchmaking, logger);
       } else {
         socket.emit('waiting-for-match', {
           message: 'Waiting for a match...',
         });
-        logger.info({socketId: socket.id, playerName}, 'Waiting for a match')
+        logger.info({socketId: socket.id, playerName: escapedName}, 'Waiting for a match')
       }
 
-    })
+    }))
 
-    socket.on('join-room', ({playerName, roomCode}: {playerName:string, roomCode:string}) => {
-      logger.info({socketId: socket.id, playerName, roomCode}, 'Player joined room')
+    socket.on('join-room', safeHandler(socket, ({playerName, roomCode}: {playerName:string, roomCode:string}) => {
+      matchmaking.updateRoomActivity(roomCode);
+      if (!roomCode || typeof roomCode !== 'string') {
+        socket.emit('error', { message: 'Room code is required and must be a string' })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid room code type')
+        return;
+      }
+
+      if (!validator.isAlphanumeric(roomCode)) {
+        socket.emit('error', { message: 'Room code must contain only alphanumeric characters' })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid room code format')
+        return;
+      }
+
+      if (roomCode.length !== 6) {
+        socket.emit('error', { message: 'Room code must be exactly 6 characters' })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid room code length')
+        return;
+      }
+
+      if (!playerName || typeof playerName !== 'string') {
+        socket.emit('error', { message: 'Player name is required and must be a string' })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name type')
+        return;
+      }
+
+      const trimmedName = playerName.trim();
+      const escapedName = validator.escape(trimmedName);
+
+      if (escapedName.length < 1 || escapedName.length > 10) {
+        socket.emit('error', { message: 'Player name must be between 1 and 10 characters' })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name length')
+        return;
+      }
+
+      logger.info({socketId: socket.id, playerName: escapedName, roomCode}, 'Player joined room')
       const player: Player = {
         id: socket.id,
-        name: playerName,
+        name: escapedName,
         socket: socket
       }
       try {
@@ -68,22 +143,23 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         if (result.matched && result.room) {
           startGame(result.room, matchmaking);
           notifyGameStart(result.room.code, io, matchmaking, logger);
-      } else {
-        socket.emit('waiting-in-room', {
-          message:"Waiting for your friend to join...",
-          roomCode: result.room?.code
-        })
-        logger.info({socketId: socket.id, playerName, roomCode}, 'Waiting for your friend to join...')
-      }
+        } else {
+          socket.emit('waiting-in-room', {
+            message:"Waiting for your friend to join...",
+            roomCode: result.room?.code
+          })
+          logger.info({socketId: socket.id, playerName: escapedName, roomCode}, 'Waiting for your friend to join...')
+        }
       } catch (error) {
         socket.emit('error', {
           message:(error as Error).message
         })
-        logger.error({socketId: socket.id, playerName, roomCode}, 'Error joining room', {error})
+        logger.error({socketId: socket.id, playerName: escapedName, roomCode}, 'Error joining room', {error})
       }
-    })
+    }))
 
-    socket.on('make-move',({roomCode, position}: {roomCode: string, position: number})=>{
+    socket.on('make-move', safeHandler(socket, ({roomCode, position}: {roomCode: string, position: number})=>{
+      matchmaking.updateRoomActivity(roomCode);
       logger.info({socketId: socket.id, roomCode, position}, 'Player made a move')
       const room = matchmaking.getRoomByRoomCode(roomCode);
       if (!room || !room.game) {
@@ -99,12 +175,12 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         return;
       }
       if (game.currentTurn !== playerSymbol) {
-        socket.emit('error', {message: 'Not your turn'})
+        socket.emit('invalid-turn', {message: 'Not your turn'})
         logger.error({socketId: socket.id, roomCode, position}, 'Not your turn')
         return;
       }
       if (!isValidMove(game.board, position)) {
-        socket.emit('error', {message: 'Invalid move'})
+        socket.emit('invalid-turn', {message: 'Invalid move'})
         logger.error({socketId: socket.id, roomCode, position}, 'Invalid move')
         return;
       }
@@ -147,9 +223,10 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         }
       })
       logger.info({socketId: socket.id, roomCode, position}, 'Board updated')
-    })
+    }))
 
-    socket.on('rematch-request', ({roomCode, choice}: {roomCode: string, choice: RematchChoice}) =>{
+    socket.on('rematch-request', safeHandler(socket, ({roomCode, choice}: {roomCode: string, choice: RematchChoice}) =>{
+      matchmaking.updateRoomActivity(roomCode);
       logger.info({socketId: socket.id, roomCode, choice}, 'Rematch request')
       const room = matchmaking.getRoomByRoomCode(roomCode);
       if(!room) {
@@ -161,6 +238,9 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
       if (choice === 'leave') {
         io.to(roomCode).emit('opponent-left', {
           message: 'Your opponent has left the game'
+        })
+        room.players.forEach(player => {
+          player?.socket?.disconnect();
         })
         matchmaking.removeRoom(roomCode);
         return;
@@ -186,10 +266,12 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         notifyGameStart(roomCode, io, matchmaking, logger);
         return;
       }
-    })  
+    }))  
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', safeHandler(socket, () => {
       logger.info({socketId: socket.id}, 'Player disconnected')
+      currentConnections--;
+      logger.info({currentConnections}, 'Current connections')
       matchmaking.removeWaitingPlayer(socket.id);
       const room = matchmaking.getRoomByPlayerId(socket.id);
       if (room && room.game) {
@@ -199,6 +281,6 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         room.game = undefined;
         return;
       }
-    })
+    }))
   })
 }

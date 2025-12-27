@@ -21,7 +21,8 @@ class MatchmakingService {
             const room: Room = {
                 code: code,
                 players: [player],
-                game: undefined
+                game: undefined,
+                lastActivity: Date.now()
             }
             this.rooms.set(code, room)
             return { matched: false, room: room, position: 1 }
@@ -42,7 +43,8 @@ class MatchmakingService {
             const room:Room = {
                 code: roomCode,
                 players: [opponent, player],
-                game: undefined
+                game: undefined,
+                lastActivity: Date.now()
             }
             this.rooms.set(roomCode, room)
             return { matched: true, room: room }
@@ -75,7 +77,8 @@ class MatchmakingService {
             const room: Room = {
                 code: roomCode,
                 players: [opponent, player],
-                game: game
+                game: game,
+                lastActivity: Date.now()
             };
             this.rooms.set(roomCode, room);
             return {
@@ -109,6 +112,10 @@ class MatchmakingService {
             }
         }
         return undefined;
+    }
+
+    getRooms(): Map<string, Room> {
+        return this.rooms;
     }       
 
     removeWaitingPlayer(playerId: string): boolean {
@@ -200,6 +207,13 @@ class MatchmakingService {
             room.game = undefined;
         }
         return this.rooms.delete(roomCode);
+    }
+
+    updateRoomActivity(roomCode: string): boolean {
+        const room = this.rooms.get(roomCode);
+        if (!room) return false;
+        room.lastActivity = Date.now();
+        return true;
     }
 }
 
