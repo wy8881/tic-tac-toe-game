@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch app.ts",
     "build": "tsc",
-    "start": "cross-env NODE_ENV=production node dist/app.js",
+    "start": "cross-env NODE_ENV=production tsx app.ts",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
@@ -23,7 +23,9 @@
     "helmet": "^8.1.0",
     "pino": "^10.1.0",
     "socket.io": "^4.8.1",
-    "validator": "^13.15.26"
+    "validator": "^13.15.26",
+    "tsx": "^4.21.0",
+    "cross-env": "^10.1.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
