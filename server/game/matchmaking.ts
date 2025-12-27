@@ -56,7 +56,7 @@ class MatchmakingService {
         const game: Game = {
             playerSymbols: {
                 X: player1.id,
-                O: player2.id
+                O: player2.id,
             },
             board: createBoard(),
             currentTurn: 'X',

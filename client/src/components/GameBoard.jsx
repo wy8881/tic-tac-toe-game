@@ -5,7 +5,7 @@ export default function GameBoard({ onSelectSquare, board}) {
 
 
     return (
-        <div className="game-board">
+        <>
             {board.map((row, rowIndex) => (
                 row.map((playerSymbol, colIndex) => (
                     <button
@@ -18,6 +18,6 @@ export default function GameBoard({ onSelectSquare, board}) {
                     </button>
                 ))
             ))}
-        </div>
+        </>
     )
 }

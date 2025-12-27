@@ -8,7 +8,8 @@ import {useEffect} from 'react'
 import {Form, Button} from 'react-bootstrap'
 import { RotatingLines } from "react-loader-spinner"
 import TvShell from './components/TvShell'
-import { Toast, ToastContainer } from 'react-bootstrap';
+import {Toaster, toast} from 'sonner'
+
 
 
 
@@ -50,26 +51,15 @@ function App() {
   const [winner, setWinner] = useState(null)
   const [waitingMessage, setWaitingMessage] = useState('')
   const [mode, setMode] = useState('quick-match')
-  const [showEnteringToast, setShowEnteringToast] = useState(false)
-  const [enteringToastMessage, setEnteringToastMessage] = useState('')
   const [rematchMessage, setRematchMessage] = useState('')
-  useEffect(() => {
-    socket.on('connect', () => {
-      console.log('Socket connected')
-    })
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
-      alert('Failed to connect to server. Please check if the server is running.')
-    })
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected')
-    })
-    socket.on('waiting-for-match', (data) => {
+
+  function setupGameListeners() {
+    socket.on('waiting-for-match', () => {
       setGameStatus(GAME_STATUS.WAITING)
       console.log('Waiting for a match...')
       setWaitingMessage('Waiting for a match...')
     })
-    socket.on('waiting-in-room', (data) => {
+    socket.on('waiting-in-room', () => {
       setGameStatus(GAME_STATUS.WAITING)
       console.log('Waiting for your friend to join...')
       setWaitingMessage('Waiting for your friend to join...')
@@ -114,36 +104,58 @@ function App() {
         setWinner(data.winner)
       }
     })
-
     socket.on('opponent-waiting-rematch', ({message}) => {
       console.log('Opponent waiting for rematch', message)
       setRematchMessage(message)
     })
-
-
-    socket.on('opponent-left', (data) => {
-      console.log('Opponent left', data)
-      alert(data.message)
-      setGameStatus(GAME_STATUS.ENTERING)
+    socket.on('opponent-left', ({message}) => {
+      console.log('Opponent left', message)
+      toast.error(message)
       resetGame()
     })
     socket.on('error', (data) => {
       console.log('Error', data)
-      alert(data.message)
+      toast.error(data.message)
+      resetGame()
     })
+  }
+
+  function cleanupGameListeners() {
+    socket.off('waiting-for-match')
+    socket.off('waiting-in-room')
+    socket.off('your-symbol')
+    socket.off('game-start')
+    socket.off('board-update')
+    socket.off('game-over')
+    socket.off('opponent-waiting-rematch')
+    socket.off('opponent-left')
+    socket.off('error')
+  }
+
+  useEffect(() => {
+    if (socket.connected) {
+      setupGameListeners()
+    }
+
+    socket.on('connect', () => {
+      console.log('Socket connected')
+      setupGameListeners()
+    })
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error)
+      toast.error('Failed to connect to server. Please check if the server is running.')
+      resetGame()
+    })
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected')
+      cleanupGameListeners()
+    })
+
     return () => {
       socket.off('connect')
       socket.off('connect_error')
       socket.off('disconnect')
-      socket.off('waiting-for-match')
-      socket.off('waiting-in-room')
-      socket.off('your-symbol')
-      socket.off('game-start')
-      socket.off('board-update')
-      socket.off('game-over')
-      socket.off('opponent-left')
-      socket.off('waiting-for-oppenent-decision')
-      socket.off('error')
+      cleanupGameListeners()
     }
   }, [])
 
@@ -154,8 +166,7 @@ function App() {
       socket.emit('quick-match', playerName)
     }
     else {
-      setShowEnteringToast(true)
-      setEnteringToastMessage('Please enter your name')
+      toast.error('Please enter your name')
       return
     }
   }
@@ -216,27 +227,6 @@ function App() {
   if (gameStatus === GAME_STATUS.ENTERING) {
     content = (
       <TvShell>
-        <ToastContainer
-          position="middle-center"
-          style={{
-            zIndex: 1000,
-          }}
-        >
-          <Toast
-            show={showEnteringToast}
-            onClose={() => setShowEnteringToast(false)}
-            delay={2000}
-            autohide
-            bg="warning"
-          >
-            <Toast.Header>
-              <strong className="me-auto">Warning</strong>
-            </Toast.Header>
-            <Toast.Body>
-              {enteringToastMessage}
-            </Toast.Body>
-          </Toast>
-        </ToastContainer> 
         <h2 className="tv-title">Join Online Game</h2>
         <div className="tv-menu">
           <Form.Group>
@@ -297,21 +287,19 @@ function App() {
     );
   } else if (gameStatus === GAME_STATUS.WAITING) {
     content = (
-      <div id="game-container">
-        <div id="waiting" className="d-flex flex-column align-items-center">
+      <div className="game-container waiting-wrapper">
           <h2 className="text-center">{waitingMessage}</h2>
           <div className="ttt-spinner-wrap">
             <RotatingLines
               width="44"
               strokeColor="white"
             />
-          </div>
         </div>
       </div>
     );
   } else{
     content = (
-      <div id="game-container">
+      <div className="game-container game-wrapper">
         <div className={`players-container ${gameStatus === GAME_STATUS.PLAYING ? 'highlight-player' : ''}`}>
           <Player playerName={players.X}
               symbol={'X'}
@@ -324,10 +312,12 @@ function App() {
                   isMe={mySymbol === 'O'}
                   />
         </div>
-        <GameBoard
-            onSelectSquare={handleSelectSquare}
-            board={board}
-        />
+        <div className="game-board">
+          <GameBoard
+              onSelectSquare={handleSelectSquare}
+              board={board}
+          />
+        </div>
         <div className="log-container">
           {/* <Log turns={gameTurns}/> */}
         </div>
@@ -343,6 +333,7 @@ function App() {
         <h1>Tic-Tac-Toe</h1>
       </header>
       <main className="main-container d-flex justify-content-center align-items-center">
+        <Toaster position="top-center" />
         {content}
       </main>
     </div>

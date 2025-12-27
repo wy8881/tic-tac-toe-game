@@ -49,14 +49,15 @@ header h1 {
 
 h1 {
   font-family: 'Caprasimo', cursive;
-  font-size: 3rem;
+  
+  font-size: clamp(2rem, 5vw, 3rem);
   margin: 0 auto 3rem auto;
   color: #3f3b00;
 }
 
 h2 {
   font-family: 'Caprasimo', cursive;
-  font-size: 2rem;
+  font-size: clamp(1.5rem, 4vw, 2rem);
   margin: 0;
   color: white;
 }
@@ -183,9 +184,9 @@ h2 {
   100% { opacity: 0.3; }
 }
 
-#game-container {
+.game-container {
   background:
-    radial-gradient(120% 80% at 50% 0%, #5b5431, #2c2916 70%),
+    radial-gradient(circle at 50% 0%, #5b5431, #2c2916 70%),
     repeating-linear-gradient(
       to bottom,
       rgba(255,255,255,0.02),
@@ -193,34 +194,51 @@ h2 {
       transparent 4px
     );
   box-shadow: inset 0 0 120px rgba(0,0,0,0.6);
-  padding: 2rem;
+}
+
+
+@media (min-width: 1440px) {
+  .game-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+}
+
+.game-wrapper {
   width: 90%;
+  max-width: 400px;
   margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 @media (min-width: 768px) {
-  #game-container {
+  .game-wrapper {
     width: 70%;
-    margin: 0 auto;
+    max-width: 500px;
   }
 }
 
 @media (min-width: 1024px) {
-  #game-container {
-    width: 50%;
-    margin: 0 auto;
+  .game-wrapper {
+    width: 60%;
+    max-width: 600px;
   }
 }
 
 @media (min-width: 1440px) {
-  #game-container {
+  .game-wrapper {
     width: 50%;
-    margin: 0 auto;
+    max-width: 600px;
   }
 }
 
 
 .players-container {
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -294,6 +312,16 @@ h2 {
     inset 0 -10px 30px rgba(0,0,0,0.35);
   position: relative;
 }
+
+.waiting-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 22px;
+  padding:clamp(1rem, 5vw, 3rem);
+}
+
 
 
 
@@ -427,14 +455,12 @@ h2 {
 .tv-form-grid {
   display: grid;
   grid-template-columns: auto 1fr;
-  align-items: stretch;
+  align-items:center;
   row-gap: 1rem;
   column-gap: 1.5rem;
 }
 
 .tv-form-grid label {
-  display: flex;
-  align-items: center;
   width: auto;
   text-align: left;
   letter-spacing: 0.12em;
@@ -450,6 +476,9 @@ h2 {
 }
 
 .tv-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap:clamp(0.5rem, 3vw, 5rem);
 }
 
@@ -484,22 +513,13 @@ h2 {
   width: clamp(140px, 50%, 240px);
 }
 .game-board {
-  display:grid;
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: clamp(0.5rem, 2vw, 1rem);
-  margin: 0 auto;
-  width:100%;
-  max-width: min(95vw, 400px);
-  padding: clamp(0.5rem, 2vw, 1rem);
   box-sizing: border-box;
-}
-
-@media (min-width: 768px) {
-  .game-board {
-    width: 50vw;
-    max-width: 600px;
-  }
 }
 
 
@@ -736,14 +756,13 @@ h2 {
     margin: 0;
   }
 
-  #game-container {
-    width: 90%;
+  .game-container {
+    box-sizing: border-box;
     margin: 0 auto;
-    padding: 1rem;
-    border-radius: 4px;
     background: linear-gradient(#383624, #282617);
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
   }
+
 
   .main-container {
     padding: 1rem 0;

@@ -15,15 +15,15 @@ function startGame(room: Room, matchmaking: MatchmakingService): void {
 }
 
 function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingService, logger:any): void {
-  logger.info({roomCode}, 'Game started')
   const room = matchmaking.getRoomByRoomCode(roomCode);
   if (!room?.game) return;
   const game = room.game;
+  logger.info({roomCode, game: JSON.stringify(game)}, 'Game started')
   io.to(roomCode).emit('game-start', {
     roomCode: roomCode,
     players: {
-      X: room.players[0].name,
-      O: room.players[1].name
+      X: room.players.find(p => p.id === game.playerSymbols.X)?.name,
+      O: room.players.find(p => p.id === game.playerSymbols.O)?.name
     },
     board: game.board,
     currentTurn: game.currentTurn,
@@ -174,6 +174,9 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
             message: 'Your opponent is waiting for your rematch decision'
           })
           logger.info({socketId: socket.id, roomCode, choice}, 'Waiting for opponent decision')
+          io.to(socket.id).emit('waiting-for-oppenent-decision', {
+            message: 'You are waiting for your opponent to decide'
+          })
           return;
         }
       }
