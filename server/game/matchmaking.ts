@@ -216,9 +216,11 @@ class MatchmakingService {
     }
 
     resetGameForRematch(roomCode: string): boolean {
-        logger.info({roomCode}, 'Resetting game for rematch')
         const room = this.rooms.get(roomCode);
-        if (!room?.game) return false;
+        if (!room?.game) {
+            logger.error({roomCode}, 'Game not found for rematch')
+            return false;
+        }
         const game = room.game;
         [game.playerSymbols.X, game.playerSymbols.O] = [game.playerSymbols.O, game.playerSymbols.X];
         game.board = createBoard();
@@ -227,6 +229,7 @@ class MatchmakingService {
         game.winner = null;
         game.createdAt = new Date();
         this.rematchChoices.delete(roomCode);
+        logger.info({roomCode, game: JSON.stringify(game)}, 'Resetting game for rematch')
         return true;
     }
 

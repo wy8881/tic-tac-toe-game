@@ -6,19 +6,27 @@ import validator from 'validator'
 import logger from './logger.js'
 import type { BotDifficulty } from './botPlayer.js'
 import type { Symbol } from '../type.js'
+import type { Game } from '../type.js'
+import BotPlayer from './botPlayer.js'
 
 function startGame(room: Room, matchmaking: MatchmakingService): void {
+  let game: Game;
   if (room.botPlayer) {
-    const game = matchmaking.createGame(room.players[0], room.botPlayer);
+    game = matchmaking.createGame(room.players[0], room.botPlayer);
   }
   else {
-    const game = matchmaking.createGame(room.players[0], room.players[1])
+    game = matchmaking.createGame(room.players[0], room.players[1])
+  }
     room.game = game;
     const roomCode = room.code;
     room.players.forEach(player => {
       player.socket.join(roomCode);
     })
-  }
+}
+
+function botMakeFirstMove(botPlayer: BotPlayer, game: Game): number {
+  const botMove = botPlayer.calculateMove(game.board, game.currentTurn);
+  return botMove;
 }
 
 function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingService, logger:any): void {
@@ -27,16 +35,40 @@ function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingSer
   const game = room.game;
   logger.info({roomCode, game: JSON.stringify(game)}, 'Game started')
   if (room.botPlayer) {
-    io.to(roomCode).emit('game-start', {
-      roomCode: roomCode,
-      players: {
-        X: room.players[0].name,
-        O: 'Bot'
-      },
-      board: game.board,
-      currentTurn: game.currentTurn,
-    })
-    room.players[0].socket.emit('your-symbol', {symbol: 'X'});
+    if (game.playerSymbols.O === "BOT") {
+      io.to(roomCode).emit('game-start', {
+        roomCode: roomCode,
+        players: {
+          X: room.players[0].name,
+          O: 'Bot'
+        },
+        board: game.board,
+        currentTurn: game.currentTurn,
+      })
+      room.players[0].socket.emit('your-symbol', {symbol: 'X'});
+    } else {
+      io.to(roomCode).emit('game-start', {
+        roomCode: roomCode,
+        players: {
+          X: 'Bot',
+          O: room.players[0].name,
+        },
+        board: game.board,
+        currentTurn: game.currentTurn,
+      })
+      room.players[0].socket.emit('your-symbol', {symbol: 'O'});
+      const firstMove = botMakeFirstMove(room.botPlayer, game);
+      matchmaking.updateBoard(roomCode, firstMove, 'X');
+      matchmaking.switchTurn(roomCode);
+      io.to(roomCode).emit('board-update', {
+        board: game.board,
+        currentTurn: game.currentTurn,
+        lastMove: {
+          position: firstMove,
+          player: 'BOT'
+        }
+      })
+    }
   } else {
     io.to(roomCode).emit('game-start', {
       roomCode: roomCode,
@@ -214,9 +246,17 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
       }
 
       const result = matchmaking.playWithBot(player, difficulty);
+      if (!result.matched) {
+        socket.emit('error', {
+          message: 'Error playing with bot',
+        });
+        logger.error({socketId: socket.id, playerName: escapedName}, 'Error playing with bot')
+        return;
+      }
       if (result.matched && result.room) {
         startGame(result.room, matchmaking);
         notifyGameStart(result.room.code, io, matchmaking, logger);
+        logger.info({socketId: socket.id, playerName: escapedName}, 'Playing with bot')
       } else {
         socket.emit('error', {
           message: 'Error playing with bot',
@@ -275,7 +315,6 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
           board: game.board
         })
         logger.info({socketId: socket.id, roomCode, position}, 'Game over')
-        room.game = undefined;
         return;
       }
 
@@ -369,7 +408,11 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
       }
       if (room.botPlayer && choice === 'continue') {
         logger.info({socketId: socket.id, roomCode, choice}, 'Player continued with bot')
-        matchmaking.resetGameForRematch(roomCode);
+        if(!matchmaking.resetGameForRematch(roomCode)) {
+          socket.emit('error', {message: 'Error resetting game for rematch'})
+          logger.error({socketId: socket.id, roomCode, choice}, 'Error resetting game for rematch')
+          return;
+        }
         notifyGameStart(roomCode, io, matchmaking, logger);
         return;
       }

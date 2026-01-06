@@ -52,6 +52,7 @@ function App() {
   const [waitingMessage, setWaitingMessage] = useState('')
   const [mode, setMode] = useState('quick-match')
   const [rematchMessage, setRematchMessage] = useState('')
+  const [difficulty, setDifficulty] = useState('')
 
   function setupGameListeners() {
     socket.on('waiting-for-match', () => {
@@ -178,17 +179,29 @@ function App() {
   function handleJoinRoom(e) {
     e.preventDefault()
     if (!playerName || !playerName.trim().length) {
-      setShowEnteringToast(true)
-      setEnteringToastMessage('Please enter your name')
+      toast.error('Please enter your name')
       return
     }
     if (!roomCode || !roomCode.trim().length) {
-      setShowEnteringToast(true)
-      setEnteringToastMessage('Please enter a room ID')
+      toast.error('Please enter a room ID')
       return
     }
     socket.connect()
     socket.emit('join-room', {roomCode: roomCode.trim(), playerName: playerName.trim()})
+  }
+
+  function handlePlayWithBot(e) {
+    e.preventDefault()
+    if (!playerName || !playerName.trim().length) {
+      toast.error('Please enter your name')
+      return
+    }
+    if (!difficulty) {
+      toast.error('Please select a difficulty')
+      return
+    }
+    socket.connect()
+    socket.emit('play-with-bot', {playerName: playerName.trim(), difficulty})
   }
   
   
@@ -212,6 +225,8 @@ function App() {
     setRoomCode(null)
     setMySymbol(null)
     setRematchMessage('')
+    setMode('quick-match')
+    setDifficulty('')
     socket.disconnect()
   }
 
@@ -260,6 +275,22 @@ function App() {
                   />
                 </>
               )}
+              {mode == 'play-bot' && (
+                <>
+                  <Form.Label htmlFor="difficulty-select">Difficulty</Form.Label>
+                  <Form.Select
+                    id="difficulty-select"
+                    className="ttt-input"
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value)}
+                  >
+                    <option value="">Select difficulty</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </Form.Select>
+                </>
+              )}
             </div>
           </Form.Group>
           <div className="buttons-group tv-buttons">
@@ -273,10 +304,28 @@ function App() {
                 >
                   Join Room
               </Button>
+              <Button
+                type="button" 
+                className="ttt-btn-primary"
+                onClick={() => setMode('play-bot')}
+                >
+                  Play with Bot
+              </Button>
+            </>
+          ) : mode == 'join-room' ? (
+            <>
+              <Button type="submit" onClick={handleJoinRoom} className="ttt-btn-primary">Join Room</Button>
+              <Button
+                type="button"
+                className="ttt-btn-primary"
+                onClick={() => setMode('quick-match')}
+                >
+                  Back                
+              </Button>
             </>
           ) : (
             <>
-              <Button type="submit" onClick={handleJoinRoom} className="ttt-btn-primary">Join Room</Button>
+              <Button type="submit" onClick={handlePlayWithBot} className="ttt-btn-primary">Play</Button>
               <Button
                 type="button"
                 className="ttt-btn-primary"
