@@ -1,6 +1,8 @@
 import { createBoard } from './gameLogic.js'
 import { Player, Game, GameStatus, Symbol, GameState, Room, RoomChoice, RematchChoice } from '../type.js'
 import logger from './logger.js'
+import BotPlayer from './botPlayer.js'
+import type { BotDifficulty } from './botPlayer.js'
 class MatchmakingService {
     private waitingPlayers: Player[]
     private rooms: Map<string, Room>
@@ -53,8 +55,36 @@ class MatchmakingService {
         return { matched: false }
     }
 
+    playWithBot(player: Player, difficulty: BotDifficulty): { matched: boolean; room?: Room } {
+        const bot = new BotPlayer(difficulty);
+        const roomCode = this.generateRoomCode();
+        const room: Room = {
+            code: roomCode,
+            players: [player],
+            botPlayer: bot,
+            game: undefined,
+            lastActivity: Date.now()
+        }
+        this.rooms.set(roomCode, room)
+        return { matched: true, room: room }
+    }
 
-    createGame(player1: Player, player2: Player): Game {
+
+    createGame(player1: Player, player2: Player | BotPlayer): Game {
+        if (player2 instanceof BotPlayer) {
+            const game: Game = {
+                playerSymbols: {
+                    X: player1.id,
+                    O: "BOT",
+                },
+                board: createBoard(),
+                currentTurn: 'X',
+                state: 'playing',
+                winner: null,
+                createdAt: new Date()
+            }
+            return game;
+        }
         const game: Game = {
             playerSymbols: {
                 X: player1.id,

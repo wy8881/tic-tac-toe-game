@@ -4,16 +4,21 @@ import { isValidMove, getGameStatus } from './gameLogic.js'
 import { Player, Room, RematchChoice } from '../type.js'
 import validator from 'validator'
 import logger from './logger.js'
-
+import type { BotDifficulty } from './botPlayer.js'
+import type { Symbol } from '../type.js'
 
 function startGame(room: Room, matchmaking: MatchmakingService): void {
-  const game = matchmaking.createGame(room.players[0], room.players[1])
-  room.game = game;
-  const roomCode = room.code;
-  room.players.forEach(player => {
-    player.socket.join(roomCode);
-  })
-
+  if (room.botPlayer) {
+    const game = matchmaking.createGame(room.players[0], room.botPlayer);
+  }
+  else {
+    const game = matchmaking.createGame(room.players[0], room.players[1])
+    room.game = game;
+    const roomCode = room.code;
+    room.players.forEach(player => {
+      player.socket.join(roomCode);
+    })
+  }
 }
 
 function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingService, logger:any): void {
@@ -21,17 +26,30 @@ function notifyGameStart(roomCode:string, io: Server, matchmaking:MatchmakingSer
   if (!room?.game) return;
   const game = room.game;
   logger.info({roomCode, game: JSON.stringify(game)}, 'Game started')
-  io.to(roomCode).emit('game-start', {
-    roomCode: roomCode,
-    players: {
-      X: room.players.find(p => p.id === game.playerSymbols.X)?.name,
-      O: room.players.find(p => p.id === game.playerSymbols.O)?.name
-    },
-    board: game.board,
-    currentTurn: game.currentTurn,
-  })
-  room.players.find(p => p.id === game.playerSymbols.X)?.socket.emit('your-symbol', {symbol: 'X'});
-  room.players.find(p => p.id === game.playerSymbols.O)?.socket.emit('your-symbol', {symbol: 'O'});
+  if (room.botPlayer) {
+    io.to(roomCode).emit('game-start', {
+      roomCode: roomCode,
+      players: {
+        X: room.players[0].name,
+        O: 'Bot'
+      },
+      board: game.board,
+      currentTurn: game.currentTurn,
+    })
+    room.players[0].socket.emit('your-symbol', {symbol: 'X'});
+  } else {
+    io.to(roomCode).emit('game-start', {
+      roomCode: roomCode,
+      players: {
+        X: room.players.find(p => p.id === game.playerSymbols.X)?.name,
+        O: room.players.find(p => p.id === game.playerSymbols.O)?.name
+      },
+      board: game.board,
+      currentTurn: game.currentTurn,
+    })
+    room.players.find(p => p.id === game.playerSymbols.X)?.socket.emit('your-symbol', {symbol: 'X'});
+    room.players.find(p => p.id === game.playerSymbols.O)?.socket.emit('your-symbol', {symbol: 'O'});
+  }
 }
 
 function safeHandler(socket: any, handler: (...args: any[]) => void | Promise<void>) {
@@ -43,6 +61,18 @@ function safeHandler(socket: any, handler: (...args: any[]) => void | Promise<vo
       socket.emit('error', { message: 'An error occurred' });
     }
   };
+}
+
+function checkPlayerName(playerName: string): {valid: boolean, message?: string, escapedName?: string} {
+  if (!playerName || typeof playerName !== 'string') {
+    return {valid: false, message: 'Player name is required and must be a string'};
+  }
+  const trimmedName = playerName.trim();
+  const escapedName = validator.escape(trimmedName);
+  if (escapedName.length < 1 || escapedName.length > 10) {
+    return {valid: false, message: 'Player name must be between 1 and 10 characters'};
+  }
+  return {valid: true, escapedName: escapedName};
 }
 
 export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, logger: any): void {
@@ -67,16 +97,17 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         logger.error({socketId: socket.id, playerName}, 'Invalid player name type')
         return;
       }
-
-      const trimmedName = playerName.trim();
-      const escapedName = validator.escape(trimmedName);
-
-      if (escapedName.length < 1 || escapedName.length > 10) {
-        socket.emit('error', { message: 'Player name must be between 1 and 10 characters' })
-        logger.error({socketId: socket.id, playerName}, 'Invalid player name length')
+      const {valid, message, escapedName} = checkPlayerName(playerName);
+      if (!valid) {
+        socket.emit('error', { message: message })
+        logger.error({socketId: socket.id, playerName}, 'Invalid player name', {message})
         return;
       }
-
+      if (!escapedName) {
+        socket.emit('error', { message: 'Player name is required and must be a string' })
+        logger.error({socketId: socket.id, playerName}, 'Invalid player name', {message})
+        return;
+      }
       logger.info({socketId: socket.id, playerName: escapedName}, 'Player joined quick match')
       const player: Player = {
         id: socket.id,
@@ -116,22 +147,17 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid room code length')
         return;
       }
-
-      if (!playerName || typeof playerName !== 'string') {
+      const {valid, message, escapedName} = checkPlayerName(playerName);
+      if (!valid && message) {
+        socket.emit('error', { message: message })
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name', {message})
+        return;
+      }
+      if (!escapedName) {
         socket.emit('error', { message: 'Player name is required and must be a string' })
-        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name type')
+        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name', {message})
         return;
       }
-
-      const trimmedName = playerName.trim();
-      const escapedName = validator.escape(trimmedName);
-
-      if (escapedName.length < 1 || escapedName.length > 10) {
-        socket.emit('error', { message: 'Player name must be between 1 and 10 characters' })
-        logger.error({socketId: socket.id, playerName, roomCode}, 'Invalid player name length')
-        return;
-      }
-
       logger.info({socketId: socket.id, playerName: escapedName, roomCode}, 'Player joined room')
       const player: Player = {
         id: socket.id,
@@ -155,6 +181,47 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
           message:(error as Error).message
         })
         logger.error({socketId: socket.id, playerName: escapedName, roomCode}, 'Error joining room', {error})
+      }
+    }))
+
+    socket.on("play-with-bot", safeHandler(socket, ({playerName, difficulty}: {playerName: string, difficulty: BotDifficulty}) =>{
+      const {valid, message, escapedName} = checkPlayerName(playerName);
+      if (!valid && message) {
+        socket.emit('error', { message: message })
+        logger.error({socketId: socket.id, playerName}, 'Invalid player name', {message})
+        return;
+      }
+      if (!escapedName) {
+        socket.emit('error', { message: 'Player name is required and must be a string' })
+        return;
+      }
+      logger.info({socketId: socket.id, playerName: escapedName, difficulty}, 'Player joined bot game')
+      const player: Player = {
+        id: socket.id,
+        name: escapedName,
+        socket: socket
+      }
+      if (!difficulty || typeof difficulty !== 'string') {
+        socket.emit('error', { message: 'Difficulty is required and must be a string' })
+        logger.error({socketId: socket.id, playerName, difficulty}, 'Invalid difficulty type')
+        return;
+      }
+
+      if (difficulty !== 'easy' && difficulty !== 'medium' && difficulty !== 'hard') {
+        socket.emit('error', { message: 'Invalid difficulty' })
+        logger.error({socketId: socket.id, playerName, difficulty}, 'Invalid difficulty')
+        return;
+      }
+
+      const result = matchmaking.playWithBot(player, difficulty);
+      if (result.matched && result.room) {
+        startGame(result.room, matchmaking);
+        notifyGameStart(result.room.code, io, matchmaking, logger);
+      } else {
+        socket.emit('error', {
+          message: 'Error playing with bot',
+        });
+        logger.error({socketId: socket.id, playerName: escapedName}, 'Error playing with bot')
       }
     }))
 
@@ -223,6 +290,61 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         }
       })
       logger.info({socketId: socket.id, roomCode, position}, 'Board updated')
+      if (room.botPlayer) {
+        const botMove = room.botPlayer.calculateMove(game.board, game.currentTurn);
+        let botSymbol = null;
+        if (game.playerSymbols.O === "BOT") {
+          botSymbol = "O" as Symbol;
+        } else {
+          botSymbol = "X" as Symbol;
+        }
+        if (!botSymbol) {
+          socket.emit('error', {message: 'Bot symbol not found'})
+          logger.error({socketId: socket.id, roomCode, position}, 'Bot symbol not found')
+          return;
+        }
+        matchmaking.updateBoard(roomCode, botMove, botSymbol);
+        const gameStatus = getGameStatus(game.board);
+        if (gameStatus.state === 'won') {
+          matchmaking.setGameStatus(roomCode, 'won', gameStatus.winner);
+          const winnerSymbol = gameStatus.winner;
+          if (winnerSymbol === botSymbol) {
+            io.to(roomCode).emit('game-over', {
+              winner: 'Bot',
+              board: game.board
+            })
+            logger.info({socketId: socket.id, roomCode, position}, 'Game over')
+            return;
+          }else {
+            const winnerName = room.players.find(p => p.id !== socket.id)?.name;
+            io.to(roomCode).emit('game-over', {
+              winner: winnerName,
+              board: game.board
+            })
+            logger.info({socketId: socket.id, roomCode, position}, 'Game over')
+            return;
+          }
+        }
+        if (gameStatus.state === 'draw') {
+          matchmaking.setGameStatus(roomCode, 'draw');
+          io.to(roomCode).emit('game-over', {
+            winner: 'draw',
+            board: game.board
+          })
+          logger.info({socketId: socket.id, roomCode, position}, 'Game over')
+          return;
+        }
+        matchmaking.switchTurn(roomCode);
+        io.to(roomCode).emit('board-update', {
+          board: game.board,
+          currentTurn: game.currentTurn,
+          lastMove: {
+            position: botMove,
+            player: botSymbol
+          }
+        })
+        logger.info({socketId: socket.id, roomCode, position}, 'Board updated')
+      }
     }))
 
     socket.on('rematch-request', safeHandler(socket, ({roomCode, choice}: {roomCode: string, choice: RematchChoice}) =>{
@@ -245,6 +367,13 @@ export function setupGameHandlers(io: Server, matchmaking: MatchmakingService, l
         matchmaking.removeRoom(roomCode);
         return;
       }
+      if (room.botPlayer && choice === 'continue') {
+        logger.info({socketId: socket.id, roomCode, choice}, 'Player continued with bot')
+        matchmaking.resetGameForRematch(roomCode);
+        notifyGameStart(roomCode, io, matchmaking, logger);
+        return;
+      }
+
       const ready = matchmaking.checkRematchReady(roomCode);
       logger.info({socketId: socket.id, roomCode, ready}, 'Rematch Ready Check')
       if (!ready.ready) {

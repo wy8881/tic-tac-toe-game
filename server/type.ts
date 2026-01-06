@@ -1,4 +1,6 @@
 import { Socket } from "socket.io";
+import BotPlayer from "./game/botPlayer.js";
+import type { BotDifficulty } from "./game/botPlayer.js";   
 
 export interface Player {
     id: string;
@@ -29,6 +31,8 @@ export interface Room {
     code: string;
     players: Player[];
     game?:Game;
+    botDifficulty?: BotDifficulty;
+    botPlayer?: BotPlayer;
     lastActivity: number;
 }
 
